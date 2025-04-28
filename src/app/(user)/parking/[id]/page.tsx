@@ -8,11 +8,18 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { CalendarIcon, Car, Check, ChevronLeft, Clock, Info, MapPin, Phone, Shield, Star } from "lucide-react"
+import { CalendarIcon, Car, Check, ChevronLeft, Clock, Info, Loader, MapPin, Phone, Shield, Star } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { useUser } from "@clerk/nextjs"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { useMutation, useQuery } from "convex/react"
+import { api } from "../../../../../convex/_generated/api"
+import axios from "axios"
+import { toast } from "sonner"
 
 // Mock data for a single parking spot
 const parkingSpot = {
@@ -63,18 +70,33 @@ const parkingSpot = {
 }
 
 export default function ParkingDetailPage() {
+  const {user} = useUser()
   const params = useParams()
+  const createBooking = useMutation(api.booking.createReview)
+  const parkingSpots = useQuery(api.parking.fetchCarId,{id:params.id})
   const router = useRouter()
   const [date, setDate] = useState<Date | undefined>(new Date())
-  const [startTime, setStartTime] = useState<string>("09:00")
-  const [endTime, setEndTime] = useState<string>("17:00")
+  const [vehicleNo, setVehicleNo] = useState("")
+  const [vehicleType, setVehicleType] = useState("")
+  const [phone, setPhone] = useState("")
+  const [startDate, setStartDate] = useState<string>("09:00")
+  const [endDate, setEndDate] = useState<string>("17:00")
+  
+  const [isLoading,setIsLoading] = useState(false)
+
+  if (parkingSpots == undefined) return (
+        <div className="h-full w-full flex flex-col items-center justify-center">
+          <Loader className='animate-spin'/>
+        </div>
+  )
+  const parkingSpot = parkingSpots[0]
 
   // Calculate duration and total price
   const calculateDuration = () => {
-    if (!startTime || !endTime) return 0
+    if (!startDate || !endDate) return 0
 
-    const [startHour, startMinute] = startTime.split(":").map(Number)
-    const [endHour, endMinute] = endTime.split(":").map(Number)
+    const [startHour, startMinute] = startDate.split(":").map(Number)
+    const [endHour, endMinute] = endDate.split(":").map(Number)
 
     let hours = endHour - startHour
     let minutes = endMinute - startMinute
@@ -90,8 +112,39 @@ export default function ParkingDetailPage() {
   const duration = calculateDuration()
   const totalPrice = Math.max(0, Math.ceil(duration * parkingSpot.price))
 
-  const handleBooking = () => {
-    router.push(`/booking?id=${params.id}&date=${date?.toISOString()}&start=${startTime}&end=${endTime}`)
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  const handlePayment = async (e) => {
+    e.preventDefault()
+
+    setIsLoading(true)
+    const data = {
+      phoneNumber:phone,
+      amount:1
+    }
+
+    const bookingDetails = {
+      userId:user?.id,
+      parkingSpotId:parkingSpot?._id,
+      date:String(date),
+      phone,
+      vehicleType,
+      vehicleNo,
+      status:'active'     
+    }
+    try {
+      
+      // await axios.post("/api/initiate-payment", JSON.parse(JSON.stringify(data)))
+      
+      await createBooking(bookingDetails)    
+      toast.success("Successful booking")
+      setIsLoading(false)
+    } catch (error) {
+      toast.error("There was an error. Try again later",{description:error.message})      
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -116,7 +169,7 @@ export default function ParkingDetailPage() {
                   className="object-cover"
                 />
               </div>
-              {parkingSpot.images.slice(1, 4).map((image, index) => (
+              {parkingSpot.images.map((image, index) => (
                 <div key={index} className="relative aspect-square">
                   <Image
                     src={image || "/placeholder.svg"}
@@ -139,16 +192,16 @@ export default function ParkingDetailPage() {
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span>{parkingSpot.location}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  {/* <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 fill-primary text-primary" />
                     <span>
                       {parkingSpot.rating} ({parkingSpot.noReviews} reviews)
                     </span>
-                  </div>
+                  </div> */}
                 </div>
               </div>
               <Badge variant="outline" className="text-lg font-semibold">
-                KSh {parkingSpot.price}/{parkingSpot.priceUnit}
+                KSh {parkingSpot.price} per hour
               </Badge>
             </div>
 
@@ -160,7 +213,7 @@ export default function ParkingDetailPage() {
                 <div>
                   <div className="font-medium">Availability</div>
                   <div className="text-sm text-muted-foreground">
-                    {parkingSpot.available} of {parkingSpot.total} spots available
+                    {parkingSpot.spots} of {parkingSpot.spots} spots available
                   </div>
                 </div>
               </div>
@@ -168,21 +221,21 @@ export default function ParkingDetailPage() {
                 <Clock className="h-5 w-5 text-primary" />
                 <div>
                   <div className="font-medium">Opening Hours</div>
-                  <div className="text-sm text-muted-foreground">{parkingSpot.openingHours}</div>
+                  <div className="text-sm text-muted-foreground">{parkingSpot.hours}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-primary" />
                 <div>
                   <div className="font-medium">Address</div>
                   <div className="text-sm text-muted-foreground">{parkingSpot.address}</div>
                 </div>
-              </div>
+              </div> */}
               <div className="flex items-center gap-2">
                 <Phone className="h-5 w-5 text-primary" />
                 <div>
                   <div className="font-medium">Contact</div>
-                  <div className="text-sm text-muted-foreground">{parkingSpot.contactPhone}</div>
+                  <div className="text-sm text-muted-foreground">{parkingSpot.contact}</div>
                 </div>
               </div>
             </div>
@@ -205,36 +258,7 @@ export default function ParkingDetailPage() {
 
           <Separator className="my-8" />
 
-          {/* Reviews */}
-          <div>
-            <h2 className="mb-6 text-2xl font-semibold">Reviews</h2>
-            <div className="space-y-6">
-              {parkingSpot.reviews.map((review) => (
-                <div key={review.id} className="rounded-lg border p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="font-medium">{review.name}</div>
-                    <div className="text-sm text-muted-foreground">{review.date}</div>
-                  </div>
-                  <div className="mb-2 flex">
-                    {Array(5)
-                      .fill(null)
-                      .map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < review.rating ? "fill-primary text-primary" : "text-muted-foreground"
-                          }`}
-                        />
-                      ))}
-                  </div>
-                  <p className="text-muted-foreground">{review.comment}</p>
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" className="mt-6">
-              View All Reviews
-            </Button>
-          </div>
+      
         </div>
 
         {/* Booking Card */}
@@ -263,13 +287,49 @@ export default function ParkingDetailPage() {
                 </Popover>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-reg">Phone Number</Label>
+                <Input
+                  id="vehicle-reg"
+                  placeholder="0123456789"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-reg">Vehicle Registration Number</Label>
+                <Input
+                  id="vehicle-reg"
+                  placeholder="e.g., KAA 123A"
+                  value={vehicleNo}
+                  onChange={(e) => setVehicleNo(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vehicle-type">Vehicle Type</Label>
+                <select
+                  onChange={(value) => setVehicleType(value)}
+                  id="vehicle-type"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2"
+                  defaultValue="sedan"
+                >
+                  <option value="sedan">Sedan</option>
+                  <option value="suv">SUV</option>
+                  <option value="van">Van</option>
+                  <option value="truck">Truck</option>
+                  <option value="motorcycle">Motorcycle</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="font-medium">Start Time</div>
                   <select
                     className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                   >
                     {Array.from({ length: 24 }).map((_, i) => {
                       const hour = i.toString().padStart(2, "0")
@@ -285,8 +345,8 @@ export default function ParkingDetailPage() {
                   <div className="font-medium">End Time</div>
                   <select
                     className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
                   >
                     {Array.from({ length: 24 }).map((_, i) => {
                       const hour = i.toString().padStart(2, "0")
@@ -308,7 +368,7 @@ export default function ParkingDetailPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <div className="font-medium">Rate</div>
                   <div>
-                    KSh {parkingSpot.price}/{parkingSpot.priceUnit}
+                    KSh {parkingSpot.price} per hour
                   </div>
                 </div>
                 <Separator className="my-2" />
@@ -324,8 +384,10 @@ export default function ParkingDetailPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Button className="w-full" size="lg" onClick={handleBooking}>
-                Reserve Now
+              <Button 
+              disabled={user == undefined ? true : false}
+              className="w-full" size="lg" onClick={handlePayment} >
+                {isLoading ? <Loader className="animate-spin"/> : "Reserve Now"}                
               </Button>
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Shield className="h-4 w-4" />

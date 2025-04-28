@@ -10,10 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Car, Clock, Filter, ListFilter, MapPin, Search, Star, X } from "lucide-react"
+import { Car, Clock, Filter, ListFilter, Loader, MapPin, Search, Star, X } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { useQuery } from "convex/react"
+import { api } from "../../../../convex/_generated/api"
 
 // Mock data for parking spots
 const parkingSpots = [
@@ -104,11 +106,18 @@ const parkingSpots = [
 ]
 
 export default function SearchPage() {
+  const parkingSpots = useQuery(api.parking.fetchCars)
   const [searchQuery, setSearchQuery] = useState("")
   const [priceRange, setPriceRange] = useState([0, 300])
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
   const [sortBy, setSortBy] = useState("distance")
 
+
+  if (parkingSpots == undefined) return (
+      <div className="h-full w-full flex flex-col items-center justify-center">
+        <Loader className='animate-spin'/>
+      </div>
+  )
   // Filter parking spots based on search and filters
   const filteredSpots = parkingSpots.filter((spot) => {
     // Filter by search query
@@ -261,11 +270,7 @@ export default function SearchPage() {
             <TabsTrigger value="list" className="gap-2">
               <ListFilter className="h-4 w-4" />
               List View
-            </TabsTrigger>
-            <TabsTrigger value="map" className="gap-2">
-              <MapPin className="h-4 w-4" />
-              Map View
-            </TabsTrigger>
+            </TabsTrigger>            
           </TabsList>
           <div className="text-sm text-muted-foreground">
             Showing {sortedSpots.length} of {parkingSpots.length} parking spots
@@ -275,12 +280,12 @@ export default function SearchPage() {
         <TabsContent value="list" className="mt-0">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {sortedSpots.map((spot) => (
-              <Card key={spot.id} className="overflow-hidden pt-0">
+              <Card key={spot._id} className="overflow-hidden pt-0">
                 <div className="relative h-48">
-                  <Image src={spot.image || "/placeholder.svg"} alt={spot.name} fill className="object-cover" />
+                  <Image src={spot.images[0] || "/placeholder.svg"} alt={spot.name} fill className="object-cover" />
                   <div className="absolute right-2 top-2">
                     <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                      KSh {spot.price}/{spot.priceUnit}
+                      KSh {spot.price}/ day
                     </Badge>
                   </div>
                 </div>
@@ -292,10 +297,10 @@ export default function SearchPage() {
                         <MapPin className="mr-1 h-4 w-4" /> {spot.location}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center text-sm">
+                    {/* <div className="flex items-center text-sm">
                       <Star className="mr-1 h-4 w-4 fill-primary text-primary" />
                       <span>{spot.rating}</span>
-                    </div>
+                    </div> */}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -303,13 +308,13 @@ export default function SearchPage() {
                     <div className="flex items-center gap-1">
                       <Car className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {spot.available}/{spot.total} spots
+                        {spot.spots}/{spot.spots} spots
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    {/* <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{spot.distance} km away</span>
-                    </div>
+                    </div> */}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {spot.features.map((feature) => (
@@ -325,7 +330,7 @@ export default function SearchPage() {
                     <span>Available 24/7</span>
                   </div>
                   <Button asChild>
-                    <Link href={`/parking/${spot.id}`}>Book Now</Link>
+                    <Link href={`/parking/${spot._id}`}>Book Now</Link>
                   </Button>
                 </CardFooter>
               </Card>

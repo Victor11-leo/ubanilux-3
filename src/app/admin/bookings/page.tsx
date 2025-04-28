@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   ArrowUpDown,
   Calendar,
@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   Filter,
+  Loader,
   MapPin,
   MoreHorizontal,
   Search,
@@ -33,6 +34,9 @@ import { format } from "date-fns"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
+import { useQuery } from "convex/react"
+import { api } from "../../../../convex/_generated/api"
+import { AvatarImage } from "@radix-ui/react-avatar"
 
 // Mock data for bookings
 const bookings = [
@@ -236,7 +240,36 @@ const bookings = [
 
 export default function BookingsPage() {
   const [date, setDate] = useState<Date | undefined>(undefined)
+  const bookings = useQuery(api.booking.fetchReviews)
+  const [users,setUsers] = useState([])
+  useEffect(() => {
+      const fetchUsers = async () => {
+        await fetch('/api/user')
+        .then((res) => res.json())
+        .then(data => {        
+          setUsers(data.data)
+        })
+        
+      }
+      fetchUsers()
+    },[])
+    
 
+  if (bookings == undefined || users.length < 1) return (
+    <div className="h-full w-full flex flex-col items-center justify-center">
+        <Loader className='animate-spin'/>
+    </div>
+  )
+
+  const joinedData = bookings.map(b => {
+    const user = users.filter(u => b.userId === u.id);
+    return {
+      ...b,
+      user: user || null,  // attach user data inside the spot
+    };
+  });
+
+  console.log(joinedData);
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -250,45 +283,7 @@ export default function BookingsPage() {
         </Button>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search by ID, customer, or vehicle..." className="pl-10" />
-        </div>
-        <div className="flex gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn("w-[240px] justify-start text-left font-normal", !date && "text-muted-foreground")}
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent mode="single" selected={date} onSelect={setDate} initialFocus />
-            </PopoverContent>
-          </Popover>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="upcoming">Upcoming</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" className="gap-1">
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filters</span>
-          </Button>
-        </div>
-      </div>
+      
 
       {/* Bookings Table */}
       <Card>
@@ -301,19 +296,7 @@ export default function BookingsPage() {
               <TableRow>
                 <TableHead className="w-[100px]">
                   <Button variant="ghost" className="gap-1 font-medium">
-                    ID
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" className="gap-1 font-medium">
-                    Customer
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" className="gap-1 font-medium">
-                    Parking Spot
+                    Location
                     <ArrowUpDown className="h-3 w-3" />
                   </Button>
                 </TableHead>
@@ -325,40 +308,24 @@ export default function BookingsPage() {
                 </TableHead>
                 <TableHead>
                   <Button variant="ghost" className="gap-1 font-medium">
+                    Customer
+                    <ArrowUpDown className="h-3 w-3" />
+                  </Button>
+                </TableHead>
+                
+                <TableHead>
+                  <Button variant="ghost" className="gap-1 font-medium">
                     Date & Time
                     <ArrowUpDown className="h-3 w-3" />
                   </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" className="gap-1 font-medium">
-                    Payment
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
+                </TableHead>                
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bookings.map((booking) => (
-                <TableRow key={booking.id}>
-                  <TableCell className="font-medium">{booking.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>
-                          {booking.customer.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{booking.customer.name}</div>
-                        <div className="text-xs text-muted-foreground">{booking.customer.phone}</div>
-                      </div>
-                    </div>
-                  </TableCell>
+              {joinedData.map((booking) => (
+                <TableRow key={booking._id}>                                    
                   <TableCell>
                     <div>
                       <div className="font-medium">{booking.parkingSpot.name}</div>
@@ -371,35 +338,23 @@ export default function BookingsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Car className="h-4 w-4 text-muted-foreground" />
-                      <span>{booking.vehicle.regNumber}</span>
+                      <span>{booking.vehicleNo}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">{booking.vehicle.type}</div>
+                    <div className="text-xs text-muted-foreground">{booking.vehicleType}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{format(new Date(booking.dateTime.date), "dd MMM yyyy")}</div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>
-                        {booking.dateTime.startTime} - {booking.dateTime.endTime} ({booking.dateTime.duration}h)
-                      </span>
+                    <div className="flex items-center gap-1">
+                      <Avatar>
+                        <AvatarImage src={booking.user[0].imageUrl}/>                        
+                      </Avatar>
+                      <p>{booking.user[0].firstName}</p>
                     </div>
+                    <div className="text-xs text-muted-foreground">{booking.vehicleType}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">KSh {booking.payment.amount}</div>
-                    <div className="flex items-center gap-1 text-xs">
-                      <Badge
-                        variant="outline"
-                        className={
-                          booking.payment.status === "paid"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-yellow-500/10 text-yellow-500"
-                        }
-                      >
-                        {booking.payment.status === "paid" ? "Paid" : "Pending"}
-                      </Badge>
-                      <span className="text-muted-foreground">{booking.payment.method}</span>
-                    </div>
+                    <div className="font-medium">{format(new Date(booking.date), "dd MMM yyyy")}</div>                    
                   </TableCell>
+                 
                   <TableCell>
                     <Badge
                       variant="outline"
@@ -413,13 +368,7 @@ export default function BookingsPage() {
                               : "bg-red-500/10 text-red-500"
                       }
                     >
-                      {booking.status === "active"
-                        ? "Active"
-                        : booking.status === "upcoming"
-                          ? "Upcoming"
-                          : booking.status === "completed"
-                            ? "Completed"
-                            : "Cancelled"}
+                      {booking.status}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -454,7 +403,7 @@ export default function BookingsPage() {
         </CardContent>
         <CardFooter className="flex items-center justify-between border-t p-4">
           <div className="text-sm text-muted-foreground">
-            Showing <strong>7</strong> of <strong>7</strong> bookings
+            Showing <strong>{joinedData.length}</strong> of <strong>{joinedData.length}</strong> bookings
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>

@@ -40,7 +40,7 @@ export default function Home() {
       </section>
 
       {/* Quick Search Section */}
-      <section className="container -mt-8 md:-mt-16 max-w-5xl mx-auto px-3">
+      {/* <section className="container -mt-8 md:-mt-16 max-w-5xl mx-auto px-3">
         <Card className="border-primary/10 bg-card/95 shadow-lg backdrop-blur">
           <CardHeader>
             <CardTitle>Quick Search</CardTitle>
@@ -56,7 +56,7 @@ export default function Home() {
             </form>
           </CardContent>
         </Card>
-      </section>
+      </section> */}
 
       {/* Features Section */}
       <section className="container py-16 md:py-24 max-w-5xl mx-auto px-3">

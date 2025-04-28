@@ -1,8 +1,11 @@
+'use client'
+
 import {
     ArrowUpDown,
     Car,
     Download,
     Filter,
+    Loader,
     Mail,
     MoreHorizontal,
     Phone,
@@ -14,6 +17,7 @@ import {
   import { Button } from "@/components/ui/button"
   import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
   import { Input } from "@/components/ui/input"
+  import {getAllUsers,banUser,unBanUser,updateRole} from '@/lib/users'
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,8 +28,12 @@ import {
   import { Badge } from "@/components/ui/badge"
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-  import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+  import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
   import { format } from "date-fns"
+import { useEffect, useState } from "react"
+import { useQuery } from "convex/react"
+import { api } from "../../../../convex/_generated/api"
+import { join } from "path"
   
   // Mock data for customers
   const customers = [
@@ -116,6 +124,36 @@ import {
   ]
   
   export default function CustomersPage() {
+  const [data,setData] = useState(null)
+  const bookings = useQuery(api.booking.fetchReviews)
+      
+  useEffect(() => {
+    const fetchUsers = async () => {
+      await fetch('/api/user')
+      .then((res) => res.json())
+      .then(data => {        
+        setData(data.data)
+      })
+      
+    }
+    fetchUsers()
+  },[])
+  
+  if (data == undefined || bookings == undefined) return (
+    <div className="h-full w-full flex flex-col items-center justify-center">
+      <Loader className='animate-spin'/>
+    </div>
+  )
+
+  const joinedData = data.map(customer => {
+    const booking = bookings.filter(u => u.userId === customer.id);
+    return {
+      ...customer,
+      booking: booking || null,  // attach user data inside the spot
+    };
+  });
+
+  console.log(joinedData);
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -136,29 +174,7 @@ import {
         </div>
   
         {/* Search and Filter */}
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search customers..." className="pl-10" />
-          </div>
-          <div className="flex gap-2">
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Customers</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="new">New (Last 30 days)</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="gap-1">
-              <Filter className="h-4 w-4" />
-              <span className="hidden sm:inline">Filters</span>
-            </Button>
-          </div>
-        </div>
+        
   
         {/* Customers Table */}
         <Card>
@@ -198,35 +214,31 @@ import {
                       Bookings
                       <ArrowUpDown className="h-3 w-3" />
                     </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" className="gap-1 font-medium">
-                      Total Spent
-                      <ArrowUpDown className="h-3 w-3" />
-                    </Button>
-                  </TableHead>
+                  </TableHead>                  
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.map((customer) => (
+                {joinedData?.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
+                          <AvatarImage src={customer.imageUrl}/>
                           <AvatarFallback>
-                            {customer.name
+                            {customer.firstName
                               .split(" ")
                               .map((n) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium">{customer.name}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="font-medium">{customer.firstName}</div>
+                          <div className="text-xs">{customer.lastName}</div>
+                          {/* <div className="text-xs text-muted-foreground">
                             Last booking: {format(new Date(customer.lastBooking), "dd MMM yyyy")}
-                          </div>
+                          </div> */}
                         </div>
                       </div>
                     </TableCell>
@@ -234,31 +246,24 @@ import {
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1 text-sm">
                           <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{customer.email}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{customer.phone}</span>
-                        </div>
+                          <span>{customer.emailAddresses[0].emailAddress}</span>
+                        </div>                        
                       </div>
                     </TableCell>
                     <TableCell>
-                      {customer.vehicles.map((vehicle) => (
-                        <div key={vehicle.regNumber} className="flex items-center gap-1 text-sm">
-                          <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                      
+                      <div className="flex items-center gap-1 text-sm">
+                        <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                        {customer?.booking.length > 0 && (
                           <span>
-                            {vehicle.regNumber} ({vehicle.type})
+                            {customer?.booking[0].vehicleNo} {customer?.booking.vehicleType}
                           </span>
-                        </div>
-                      ))}
-                      <Button variant="ghost" size="sm" className="mt-1 h-7 gap-1 px-2 text-xs">
-                        <Plus className="h-3 w-3" />
-                        Add Vehicle
-                      </Button>
+                        )} 
+                      </div>                                          
                     </TableCell>
-                    <TableCell>{format(new Date(customer.joinDate), "dd MMM yyyy")}</TableCell>
-                    <TableCell>{customer.bookings}</TableCell>
-                    <TableCell>KSh {customer.totalSpent.toLocaleString()}</TableCell>
+                    <TableCell>{format(new Date(customer.createdAt), "dd MMM yyyy")}</TableCell>
+
+                    <TableCell>{customer?.booking.length}</TableCell>                    
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -278,11 +283,35 @@ import {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View Profile</DropdownMenuItem>
-                          <DropdownMenuItem>Edit Details</DropdownMenuItem>
-                          <DropdownMenuItem>View Bookings</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-500">Deactivate</DropdownMenuItem>
+                          <DropdownMenuItem>
+                          {customer.publicMetadata.role == 'admin' ?
+                            <Button
+                            onClick={() => updateRole({
+                              user:customer.id,
+                              role:'user'
+                            })}
+                            >Become user</Button>
+                            :
+                            <Button
+                            onClick={() => updateRole({
+                              user:customer.id,
+                              role:'admin'
+                            })}
+                            >Become admin</Button>
+                            }
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                          {customer.banned == false ?
+                            <Button
+                            onClick={() => banUser(customer.id)}
+                            className="bg-destructive text-white">Ban user</Button>                            
+                            :
+                            <Button
+                            onClick={() => unBanUser(customer.id)}
+                            className="bg-green-600 text-white">Unban user</Button>                            
+                            }
+                          </DropdownMenuItem>
+                          
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -293,43 +322,14 @@ import {
           </CardContent>
           <CardFooter className="flex items-center justify-between border-t p-4">
             <div className="text-sm text-muted-foreground">
-              Showing <strong>7</strong> of <strong>7</strong> customers
+              Showing <strong>{joinedData.length}</strong> of <strong>{joinedData.length}</strong> customers
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>
-                Previous
-              </Button>
-              <Button variant="outline" size="sm" disabled>
-                Next
-              </Button>
-            </div>
+            
           </CardFooter>
         </Card>
   
         {/* Customer Stats */}
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Top Customers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {customers
-                  .sort((a, b) => b.totalSpent - a.totalSpent)
-                  .slice(0, 5)
-                  .map((customer, index) => (
-                    <div key={customer.id} className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">{index + 1}</div>
-                      <div className="flex-1">
-                        <div className="font-medium">{customer.name}</div>
-                        <div className="text-xs text-muted-foreground">{customer.bookings} bookings</div>
-                      </div>
-                      <div className="font-medium">KSh {customer.totalSpent.toLocaleString()}</div>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-6 md:grid-cols-3">          
   
           <Card>
             <CardHeader className="pb-2">
@@ -337,23 +337,23 @@ import {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {customers
-                  .sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime())
-                  .slice(0, 5)
+                {data
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())                  
                   .map((customer) => (
                     <div key={customer.id} className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
+                        <AvatarImage src={customer.imageUrl}/>
                         <AvatarFallback>
-                          {customer.name
+                          {customer.firstName
                             .split(" ")
                             .map((n) => n[0])
                             .join("")}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <div className="font-medium">{customer.name}</div>
+                        <div className="font-medium">{customer.firstName}</div>
                         <div className="text-xs text-muted-foreground">
-                          Joined {format(new Date(customer.joinDate), "dd MMM yyyy")}
+                          Joined {format(new Date(customer.createdAt), "dd MMM yyyy")}
                         </div>
                       </div>
                       <Button variant="ghost" size="icon" className="h-8 w-8">

@@ -1,5 +1,6 @@
+'use client'
 import Image from "next/image"
-import { ArrowUpDown, Edit, Filter, MapPin, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react"
+import { ArrowUpDown, Edit, Filter, Loader, MapPin, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,10 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Link from "next/link"
+import { useMutation, useQuery } from "convex/react"
+import { api } from "../../../../convex/_generated/api"
+import { useState } from "react"
 
 // Mock data for parking spots
 const parkingSpots = [
@@ -92,6 +97,18 @@ const parkingSpots = [
 ]
 
 export default function ParkingSpotsPage() {
+  const parkingSpots = useQuery(api.parking.fetchCars)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const deleteCar = useMutation(api.parking.deleteCar)
+  // Filter and search parking spots
+  
+  if (parkingSpots == undefined) return (
+    <div className="h-full w-full flex flex-col items-center justify-center">
+      <Loader className='animate-spin'/>
+    </div>
+  )
+  console.log(parkingSpots);
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -99,10 +116,12 @@ export default function ParkingSpotsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Parking Spots</h1>
           <p className="text-muted-foreground">Manage your parking locations and their details.</p>
         </div>
-        <Button className="gap-1">
-          <Plus className="h-4 w-4" />
-          Add Parking Spot
-        </Button>
+        <Link href='/admin/parking-spots/create'>
+          <Button className="gap-1">
+            <Plus className="h-4 w-4" />
+            Add Parking Spot
+          </Button>
+        </Link>
       </div>
 
       {/* Search and Filter */}
@@ -177,7 +196,7 @@ export default function ParkingSpotsPage() {
                 </TableHeader>
                 <TableBody>
                   {parkingSpots.map((spot) => (
-                    <TableRow key={spot.id}>
+                    <TableRow key={spot._id}>
                       <TableCell className="font-medium">{spot.name}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
@@ -186,10 +205,12 @@ export default function ParkingSpotsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="font-medium">{spot.availableSpots}</span>
-                        <span className="text-muted-foreground">/{spot.totalSpots}</span>
+                        <span className="font-medium">{spot.spots}</span>
+                        <span className="text-muted-foreground">/{spot.spots}</span>
                       </TableCell>
-                      <TableCell className="text-center">KSh {spot.pricePerHour}/hr</TableCell>
+                      <TableCell className="text-center">
+                        KSh {spot.price}
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge
                           variant="outline"
@@ -217,16 +238,16 @@ export default function ParkingSpotsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              <span>Edit</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <MapPin className="mr-2 h-4 w-4" />
-                              <span>View on Map</span>
-                            </DropdownMenuItem>
+                            <Link href={`/admin/parking-spots/edit/${spot._id}`}>
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                <span>Edit</span>
+                              </DropdownMenuItem>
+                            </Link>                            
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-500">
+                            <DropdownMenuItem 
+                            onClick={() => deleteCar({id:spot._id}) }
+                            className="text-red-500">
                               <Trash2 className="mr-2 h-4 w-4" />
                               <span>Delete</span>
                             </DropdownMenuItem>
@@ -240,7 +261,7 @@ export default function ParkingSpotsPage() {
             </CardContent>
             <CardFooter className="flex items-center justify-between border-t p-4">
               <div className="text-sm text-muted-foreground">
-                Showing <strong>6</strong> of <strong>6</strong> parking spots
+                Showing <strong>{parkingSpots.length}</strong> of <strong>{parkingSpots.length}</strong> parking spots
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled>
@@ -258,9 +279,9 @@ export default function ParkingSpotsPage() {
         <TabsContent value="grid" className="mt-4">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {parkingSpots.map((spot) => (
-              <Card key={spot.id} className="overflow-hidden">
+              <Card key={spot._id} className="overflow-hidden">
                 <div className="relative h-48">
-                  <Image src={spot.image || "/placeholder.svg"} alt={spot.name} fill className="object-cover" />
+                  <Image src={spot.images[0] || "/placeholder.svg"} alt={spot.name} fill className="object-cover" />
                   <div className="absolute right-2 top-2">
                     <Badge
                       variant="outline"
@@ -292,16 +313,18 @@ export default function ParkingSpotsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <Link href={`/admin/parking-spots/edit/${spot._id}`}>
+                        
                         <DropdownMenuItem>
                           <Edit className="mr-2 h-4 w-4" />
                           <span>Edit</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <MapPin className="mr-2 h-4 w-4" />
-                          <span>View on Map</span>
-                        </DropdownMenuItem>
+                        </Link>
+                        
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-500">
+                        <DropdownMenuItem 
+                        onClick={() => deleteCar({id:spot._id}) }
+                        className="text-red-500">
                           <Trash2 className="mr-2 h-4 w-4" />
                           <span>Delete</span>
                         </DropdownMenuItem>
@@ -314,31 +337,33 @@ export default function ParkingSpotsPage() {
                     <div>
                       <p className="text-muted-foreground">Capacity</p>
                       <p className="font-medium">
-                        {spot.availableSpots}/{spot.totalSpots} spots
+                        {spot.spots}/{spot.spots} spots
                       </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Price</p>
-                      <p className="font-medium">KSh {spot.pricePerHour}/hr</p>
+                      <p className="font-medium">
+                        KSh {spot.price} per day
+                      </p>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {spot.features.map((feature) => (
+                    {spot.features.slice(0, 3).map((feature) => (
                       <Badge key={feature} variant="outline">
                         {feature}
                       </Badge>
                     ))}
+                    {spot.features.length > 3 && <Badge variant="outline">+{spot.features.length - 3} more</Badge>}
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-between border-t">
-                  <Button variant="ghost" size="sm" className="gap-1">
-                    <Edit className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-1">
-                    <MapPin className="h-4 w-4" />
-                    View on Map
-                  </Button>
+                <Link href={`/admin/parking-spots/edit/${spot._id}`}>
+                    <Button variant="ghost" size="sm" className="gap-1">
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Button>
+                </Link>
+                  
                 </CardFooter>
               </Card>
             ))}
